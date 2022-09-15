@@ -43,7 +43,7 @@ export function createChannelConnection (
   errorHandler,
   log,
   serversideRouting = null,
-  createChannel = channelConfig => new Channel(channelConfig)
+  createChannel = (channelConfig) => new Channel(channelConfig)
 ) {
   const channelConfig = new ChannelConfig(
     address,
@@ -57,7 +57,7 @@ export function createChannelConnection (
     .then(({ protocolVersion: version, consumeRemainingBuffer }) => {
       const chunker = new Chunker(channel)
       const dechunker = new Dechunker()
-      const createProtocol = conn =>
+      const createProtocol = (conn) =>
         Bolt.create({
           version,
           channel,
@@ -69,11 +69,12 @@ export function createChannelConnection (
           server: conn.server,
           log: conn.logger,
           observer: {
-            onPendingObserversChange: conn._handleOngoingRequestsNumberChange.bind(conn),
+            onPendingObserversChange:
+              conn._handleOngoingRequestsNumberChange.bind(conn),
             onError: conn._handleFatalError.bind(conn),
             onFailure: conn._resetOnFailure.bind(conn),
             onProtocolError: conn._handleProtocolError.bind(conn),
-            onErrorApplyTransformation: error =>
+            onErrorApplyTransformation: (error) =>
               conn.handleAndTransformError(error, conn._address)
           }
         })
@@ -90,11 +91,11 @@ export function createChannelConnection (
       )
 
       // forward all pending bytes to the dechunker
-      consumeRemainingBuffer(buffer => dechunker.write(buffer))
+      consumeRemainingBuffer((buffer) => dechunker.write(buffer))
 
       return connection
     })
-    .catch(reason =>
+    .catch((reason) =>
       channel.close().then(() => {
         throw reason
       })
@@ -182,13 +183,21 @@ export default class ChannelConnection extends Connection {
    * @return {Promise<Connection>} promise resolved with the current connection if initialization is successful. Rejected promise otherwise.
    */
   _initialize (userAgent, authToken) {
+    // TODO: Update to see if auth token is a cb
     const self = this
-    return new Promise((resolve, reject) => {
+
+    return new Promise(async (resolve, reject) => {
+      let token = authToken
+
+      if (authToken.constructor.name === 'AsyncFunction') {
+        token = await authToken()
+      }
+
       this._protocol.initialize({
         userAgent,
-        authToken,
-        onError: err => reject(err),
-        onComplete: metadata => {
+        token,
+        onError: (err) => reject(err),
+        onComplete: (metadata) => {
           if (metadata) {
             // read server version from the response metadata, if it is available
             const serverVersion = metadata.server
@@ -280,7 +289,9 @@ export default class ChannelConnection extends Connection {
 
     if (this._log.isErrorEnabled()) {
       this._log.error(
-        `experienced a fatal error caused by ${this._error} (${json.stringify(this._error)})`
+        `experienced a fatal error caused by ${this._error} (${json.stringify(
+          this._error
+        )})`
       )
     }
 
@@ -307,7 +318,7 @@ export default class ChannelConnection extends Connection {
   resetAndFlush () {
     return new Promise((resolve, reject) => {
       this._reset({
-        onError: error => {
+        onError: (error) => {
           if (this._isBroken) {
             // handling a fatal error, no need to raise a protocol violation
             reject(error)
@@ -340,13 +351,14 @@ export default class ChannelConnection extends Connection {
     })
   }
 
-  _reset(observer) {
+  _reset (observer) {
     if (this._reseting) {
       if (!this._protocol.isLastMessageReset()) {
         this._protocol.reset({
-          onError: error => {
+          onError: (error) => {
             observer.onError(error)
-          }, onComplete: () => {
+          },
+          onComplete: () => {
             observer.onComplete()
           }
         })
@@ -367,10 +379,11 @@ export default class ChannelConnection extends Connection {
     }
 
     this._protocol.reset({
-      onError: error => {
-        notifyFinish(obs => obs.onError(error))
-      }, onComplete: () => {
-        notifyFinish(obs => obs.onComplete())
+      onError: (error) => {
+        notifyFinish((obs) => obs.onError(error))
+      },
+      onComplete: () => {
+        notifyFinish((obs) => obs.onComplete())
       }
     })
   }

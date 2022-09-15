@@ -16,8 +16,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Driver, READ, WRITE } from './driver'
-import VERSION from './version'
+import { Driver, READ, WRITE } from "./driver";
+import VERSION from "./version";
 
 import {
   Neo4jError,
@@ -61,23 +61,23 @@ import {
   Session,
   Transaction,
   ManagedTransaction,
-  bookmarkManager
-} from 'neo4j-driver-core'
+  bookmarkManager,
+} from "neo4j-driver-core";
 import {
   DirectConnectionProvider,
-  RoutingConnectionProvider
-} from 'neo4j-driver-bolt-connection'
+  RoutingConnectionProvider,
+} from "neo4j-driver-bolt-connection";
 
-import RxSession from './session-rx'
-import RxTransaction from './transaction-rx'
-import RxManagedTransaction from './transaction-managed-rx'
-import RxResult from './result-rx'
+import RxSession from "./session-rx";
+import RxTransaction from "./transaction-rx";
+import RxManagedTransaction from "./transaction-managed-rx";
+import RxResult from "./result-rx";
 
 const {
   util: { ENCRYPTION_ON, assertString, isEmptyObjectOrNull },
   serverAddress: { ServerAddress },
-  urlUtil
-} = internal
+  urlUtil,
+} = internal;
 
 /**
  * Construct a new Neo4j Driver. This is your main entry point for this
@@ -209,71 +209,73 @@ const {
  * @param {Object} config Configuration object. See the configuration section above for details.
  * @returns {Driver}
  */
-function driver (url, authToken, config = {}) {
-  assertString(url, 'Bolt URL')
-  const parsedUrl = urlUtil.parseDatabaseUrl(url)
+function driver(url, authToken, config = {}) {
+  assertString(url, "Bolt URL");
+  const parsedUrl = urlUtil.parseDatabaseUrl(url);
 
   // Determine entryption/trust options from the URL.
-  let routing = false
-  let encrypted = false
-  let trust
+  let routing = false;
+  let encrypted = false;
+  let trust;
   switch (parsedUrl.scheme) {
-    case 'bolt':
-      break
-    case 'bolt+s':
-      encrypted = true
-      trust = 'TRUST_SYSTEM_CA_SIGNED_CERTIFICATES'
-      break
-    case 'bolt+ssc':
-      encrypted = true
-      trust = 'TRUST_ALL_CERTIFICATES'
-      break
-    case 'neo4j':
-      routing = true
-      break
-    case 'neo4j+s':
-      encrypted = true
-      trust = 'TRUST_SYSTEM_CA_SIGNED_CERTIFICATES'
-      routing = true
-      break
-    case 'neo4j+ssc':
-      encrypted = true
-      trust = 'TRUST_ALL_CERTIFICATES'
-      routing = true
-      break
+    case "bolt":
+      break;
+    case "bolt+s":
+      encrypted = true;
+      trust = "TRUST_SYSTEM_CA_SIGNED_CERTIFICATES";
+      break;
+    case "bolt+ssc":
+      encrypted = true;
+      trust = "TRUST_ALL_CERTIFICATES";
+      break;
+    case "neo4j":
+      routing = true;
+      break;
+    case "neo4j+s":
+      encrypted = true;
+      trust = "TRUST_SYSTEM_CA_SIGNED_CERTIFICATES";
+      routing = true;
+      break;
+    case "neo4j+ssc":
+      encrypted = true;
+      trust = "TRUST_ALL_CERTIFICATES";
+      routing = true;
+      break;
     default:
-      throw new Error(`Unknown scheme: ${parsedUrl.scheme}`)
+      throw new Error(`Unknown scheme: ${parsedUrl.scheme}`);
   }
 
   // Encryption enabled on URL, propagate trust to the config.
   if (encrypted) {
     // Check for configuration conflict between URL and config.
-    if ('encrypted' in config || 'trust' in config) {
+    if ("encrypted" in config || "trust" in config) {
       throw new Error(
-        'Encryption/trust can only be configured either through URL or config, not both'
-      )
+        "Encryption/trust can only be configured either through URL or config, not both"
+      );
     }
-    config.encrypted = ENCRYPTION_ON
-    config.trust = trust
+    config.encrypted = ENCRYPTION_ON;
+    config.trust = trust;
   }
 
-  // Sanitize authority token. Nicer error from server when a scheme is set.
-  authToken = authToken || {}
-  authToken.scheme = authToken.scheme || 'none'
+  if (authToken.constructor.name !== "AsyncFunction") {
+    // Sanitize authority token. Nicer error from server when a scheme is set.
+    authToken = authToken || {};
+    authToken.scheme = authToken.scheme || "none";
+  }
 
   // Use default user agent or user agent specified by user.
-  config.userAgent = config.userAgent || USER_AGENT
-  const address = ServerAddress.fromUrl(parsedUrl.hostAndPort)
+  config.userAgent = config.userAgent || USER_AGENT;
+  const address = ServerAddress.fromUrl(parsedUrl.hostAndPort);
 
   const meta = {
     address,
-    typename: routing ? 'Routing' : 'Direct',
-    routing
-  }
+    typename: routing ? "Routing" : "Direct",
+    routing,
+  };
 
-  return new Driver(meta, config, createConnectionProviderFunction())
+  return new Driver(meta, config, createConnectionProviderFunction());
 
-  function createConnectionProviderFunction () {
+  function createConnectionProviderFunction() {
     if (routing) {
       return (id, config, log, hostNameResolver) =>
         new RoutingConnectionProvider({
@@ -284,13 +286,13 @@ function driver (url, authToken, config = {}) {
           authToken,
           address,
           userAgent: config.userAgent,
-          routingContext: parsedUrl.query
-        })
+          routingContext: parsedUrl.query,
+        });
     } else {
       if (!isEmptyObjectOrNull(parsedUrl.query)) {
         throw new Error(
           `Parameters are not supported with none routed scheme. Given URL: '${url}'`
-        )
+        );
       }
 
       return (id, config, log) =>
@@ -300,8 +302,8 @@ function driver (url, authToken, config = {}) {
           log,
           authToken,
           address,
-          userAgent: config.userAgent
-        })
+          userAgent: config.userAgent,
+        });
     }
   }
 }
@@ -316,17 +318,21 @@ function driver (url, authToken, config = {}) {
  * @returns {true} When the server is reachable
  * @throws {Error} When the server is not reachable or the url is invalid
  */
-async function hasReachableServer (url, config) {
-  const nonLoggedDriver = driver(url, { scheme: 'none', principal: '', credentials: '' }, config)
+async function hasReachableServer(url, config) {
+  const nonLoggedDriver = driver(
+    url,
+    { scheme: "none", principal: "", credentials: "" },
+    config
+  );
   try {
-    await nonLoggedDriver.getNegotiatedProtocolVersion()
-    return true
+    await nonLoggedDriver.getNegotiatedProtocolVersion();
+    return true;
   } finally {
-    await nonLoggedDriver.close()
+    await nonLoggedDriver.close();
   }
 }
 
-const USER_AGENT = 'neo4j-javascript/' + VERSION
+const USER_AGENT = "neo4j-javascript/" + VERSION;
 
 /**
  * Object containing predefined logging configurations. These are expected to be used as values of the driver config's `logging` property.
@@ -334,14 +340,14 @@ const USER_AGENT = 'neo4j-javascript/' + VERSION
  * timestamp, level and message. It takes an optional `level` parameter which represents the maximum log level to be logged. Default value is 'info'.
  */
 const logging = {
-  console: level => {
+  console: (level) => {
     return {
       level,
       logger: (level, message) =>
-        console.log(`${global.Date.now()} ${level.toUpperCase()} ${message}`)
-    }
-  }
-}
+        console.log(`${global.Date.now()} ${level.toUpperCase()} ${message}`),
+    };
+  },
+};
 
 /**
  * Object containing constructors for all neo4j types.
@@ -362,16 +368,16 @@ const types = {
   LocalDateTime,
   LocalTime,
   Time,
-  Integer
-}
+  Integer,
+};
 
 /**
  * Object containing string constants representing session access modes.
  */
 const session = {
   READ,
-  WRITE
-}
+  WRITE,
+};
 
 /**
  * Object containing functions to work with {@link Integer} objects.
@@ -379,15 +385,15 @@ const session = {
 const integer = {
   toNumber,
   toString,
-  inSafeRange
-}
+  inSafeRange,
+};
 
 /**
  * Object containing functions to work with spatial types, like {@link Point}.
  */
 const spatial = {
-  isPoint
-}
+  isPoint,
+};
 
 /**
  * Object containing functions to work with temporal types, like {@link Time} or {@link Duration}.
@@ -398,8 +404,8 @@ const temporal = {
   isTime,
   isDate,
   isLocalDateTime,
-  isDateTime
-}
+  isDateTime,
+};
 
 /**
  * @private
@@ -455,8 +461,8 @@ const forExport = {
   Date,
   LocalDateTime,
   DateTime,
-  bookmarkManager
-}
+  bookmarkManager,
+};
 
 export {
   driver,
@@ -509,6 +515,6 @@ export {
   Date,
   LocalDateTime,
   DateTime,
-  bookmarkManager
-}
-export default forExport
+  bookmarkManager,
+};
+export default forExport;
